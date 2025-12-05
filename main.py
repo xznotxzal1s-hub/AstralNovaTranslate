@@ -213,3 +213,47 @@ def translate():
 
         resp.encoding = resp.apparent_encoding
         soup = BeautifulSoup(resp.text, 'html.parser')
+        
+        # 2. 调用新的逻辑
+        title = soup.find('title').text if soup.find('title') else "未命名章节"
+        raw_text = intelligent_extract(soup) # 👈 这里调用新的超级函数
+
+        if not raw_text:
+            return jsonify({"error": "所有抓取策略都失败了，页面可能真的没有正文。"}), 400
+
+        # 3. AI 翻译
+        prompt = f"你是一位轻小说翻译家。请将以下日语小说片段翻译成流畅、优美且符合中文轻小说阅读习惯的中文。\n\n原文：\n{raw_text[:12000]}"
+        translated_text = ""
+        
+        if provider == 'gemini':
+            genai.configure(api_key=user_key)
+            model = genai.GenerativeModel(user_model) # 自由填模型名
+            chat_resp = model.generate_content(prompt)
+            translated_text = chat_resp.text
+        else:
+            # DeepSeek / OpenAI
+            target_url = (base_url.rstrip('/') + "/chat/completions")
+            payload = {
+                "model": user_model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False
+            }
+            headers = {"Authorization": f"Bearer {user_key}", "Content-Type": "application/json"}
+            ai_resp = requests.post(target_url, json=payload, headers=headers, timeout=60)
+            
+            if ai_resp.status_code != 200:
+                return jsonify({"error": f"AI 报错: {ai_resp.text}"}), 400
+            
+            ai_data = ai_resp.json()
+            if 'choices' in ai_data:
+                translated_text = ai_data['choices'][0]['message']['content']
+            else:
+                return jsonify({"error": f"API 返回未知格式: {ai_data}"}), 400
+
+        return jsonify({"title": title, "content": translated_text, "length": len(raw_text)})
+
+    except Exception as e:
+        return jsonify({"error": f"程序内部错误: {str(e)}"}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=8080)
