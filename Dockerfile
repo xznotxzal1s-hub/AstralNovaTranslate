@@ -4,8 +4,8 @@ FROM python:3.9-slim
 # 设置工作目录
 WORKDIR /app
 
-# 安装必要的库 (就是我们在 Replit 里装的那些积木)
-RUN pip install flask requests beautifulsoup4 google-generativeai
+# 安装必要的库 (新增了 EbookLib 用于处理电子书)
+RUN pip install flask requests beautifulsoup4 google-generativeai EbookLib
 
 # 把当前目录下的文件都复制进去
 COPY . .
